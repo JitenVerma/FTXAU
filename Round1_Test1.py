@@ -3,9 +3,21 @@ from datamodel import OrderDepth, TradingState, Order
 from collections import deque
 import numpy as np
 
-raw_list = deque([], maxlen=50)
-moving_average_list = deque([], maxlen=50)
-last_buy = 0
+raw_list_banana = deque([], maxlen=50)
+moving_average_banana = deque([], maxlen=100)
+last_buy_banana = 0
+
+raw_list_pearls = deque([], maxlen=50)
+moving_average_pearls = deque([], maxlen=100)
+last_buy_pearls = 0
+
+raw_list_coco = deque([], maxlen=50)
+moving_average_coco = deque([], maxlen=100)
+last_buy_coco = 0
+
+raw_list_pina = deque([], maxlen=50)
+moving_average_pina = deque([], maxlen=100)
+last_buy_pina = 0
 
 pl = 2_000_000
 
@@ -18,7 +30,7 @@ class Trader:
         """
         # Initialize the method output dict as an empty dict
         result = {}
-        print(pl)
+        print(pl, state.position)
         # Iterate over all the keys (the available products) contained in the order depths
         for product in state.order_depths.keys():
 
@@ -32,69 +44,29 @@ class Trader:
                 orders: list[Order] = []
 
                 ##############
-                global raw_list
-                raw_list.append(min(order_depth.sell_orders.keys()))
+                global raw_list_banana
+                raw_list_banana.append(min(order_depth.sell_orders.keys()))
                 # print('Raw List:', raw_list)
 
-                global moving_average_list
-                moving_average_list.append(np.average(raw_list))
+                global moving_average_banana
+                moving_average_banana.append(np.average(raw_list_banana))
                 # print('Moving Average List: ', moving_average_list)
 
-                price_grad = np.gradient(moving_average_list)
-                price_sign = np.sign(price_grad)
+                short_trend = self.trend(np.array(moving_average_banana), 15)
+                long_trend = self.trend(np.array(moving_average_banana), 100)
 
-                if len(price_sign) <= 20:
-                    continue
+                # print(f'Long Trend: {long_trend}, Short Trend: {short_trend}')
 
-
-                # NOTE IMPROVE SPEED
-                if moving_average_list[-1] - moving_average_list[0] < 0:
-                    acceptable_price = moving_average_list[-1]
-
-                    # # If statement checks if there are any SELL orders in the PEARLS market
-                    # if len(order_depth.sell_orders) > 0:
-
-                    #     # Sort all the available sell orders by their price,
-                    #     # and select only the sell order with the lowest price
-                    #     best_ask = min(order_depth.sell_orders.keys())
-                    #     best_ask_volume = order_depth.sell_orders[best_ask]
-
-                    #     # Check if the lowest ask (sell order) is lower than the above defined fair value
-                    #     if best_ask < acceptable_price:
-
-                    #         # In case the lowest ask is lower than our fair value,
-                    #         # This presents an opportunity for us to buy cheaply
-                    #         # The code below therefore sends a BUY order at the price level of the ask,
-                    #         # with the same quantity
-                    #         # We expect this order to trade with the sell order
-                    #         print('ok',best_ask_volume)
-                    #         print('huh', (20 - state.position.get('BANANAS', 0), -best_ask_volume))
-                    #         buy_amount = min(20 - state.position.get('BANANAS', 0), -best_ask_volume)
-
-                            
-                    #         print("BUY", str(buy_amount) + "x", best_ask)
-                    #         print(state.position)
-                    #         orders.append(Order(product, best_ask, buy_amount))
-                            
-                    #         global last_buy
-                    #         last_buy = best_ask
+                if long_trend == -1 and short_trend == 1:
+                    acceptable_price = moving_average_banana[-1] + 3
 
                     # TODO BANANA LIMIT IS HARD CODED
                     if order := self.buy(state, product, acceptable_price, 20):
                         orders.append(order)
 
-                elif moving_average_list[-1] - moving_average_list[0] > 0:
+                elif long_trend == 1 and short_trend == -1:
 
-                    acceptable_price = moving_average_list[-1]
-
-                    # if len(order_depth.buy_orders) != 0:
-                    #     best_bid = max(order_depth.buy_orders.keys())
-                    #     best_bid_volume = order_depth.buy_orders[best_bid]
-                    #     if best_bid > acceptable_price:
-                    #         print("SELL", str(best_bid_volume) + "x", best_bid)
-                    #         print(state.position)
-                    #         orders.append(Order(product, best_bid, -best_bid_volume))
-
+                    acceptable_price = moving_average_banana[-1] - 3
                     if order := self.sell(state, product, acceptable_price, 20):
                         orders.append(order)
 
@@ -109,29 +81,69 @@ class Trader:
                 #             print(state.position)
                 #             orders.append(Order(product, best_bid, -best_bid_volume))
 
-                '''
-                Next steps:
-                Calculate average
-                Maintain deque for smoothed values
-                Write a function for momentum trading
-                '''
-
-
                 # Add all the above orders to the result dict
                 result[product] = orders
 
-            # Return the dict of orders
-            # These possibly contain buy or sell orders for PEARLS
-            # Depending on the logic above
+
+            # NOTE: KUNJ CODE
+            if product == "PEARLS":
+                pearl_orders = self.trade_pearls(state)
+                result[product] = pearl_orders
+
+            # NOTE: ROB CODE
+            # if product == "PEARLS":
+            #     pearl_limit = 20
+            #     our_buy_price = 9996
+            #     our_sell_price = 10004
+
+            #     if order := self.sell(state, product, our_sell_price, pearl_limit):
+            #         orders.append(order)
+
+            #     if order := self.buy(state, product, our_buy_price, pearl_limit):
+            #         orders.append(order)
+
+            #     result[product] = orders
+
         return result
     
-    # def trade_pearl(self, state: TradingState) -> Order:
-    #     """
-    #     This method is used to trade PEARLS
-    #     """
 
-    #     buy_price = 9996
-    #     sell_price = 10004
+    def trade_pearls(self, state: TradingState) -> Order:
+        """
+        This method is used to trade PEARLS
+        """
+        pearl_limit = 20
+        our_buy_price = 9996
+        our_sell_price = 10004
+
+        order_depth: OrderDepth = state.order_depths["PEARLS"]
+
+        # Initialize the list of Orders to be sent as an empty list
+        orders: list[Order] = []
+        
+        #### BUYING #####
+        # sell_prices will be something like [10004, 10005]
+        sell_prices = order_depth.sell_orders.keys()
+
+        # ordering would now make it [10004, 10005]
+        ordered_sell_prices = sorted(sell_prices)
+        
+        for offer in ordered_sell_prices:
+            if offer <= our_buy_price:
+                # We want to buy it
+                order = self.buy(state, "PEARLS", offer, pearl_limit)
+                orders.append(order)
+        
+        #### SELLING #####
+        buy_prices = order_depth.buy_orders.keys()
+        ordered_buy_prices = sorted(buy_prices, reverse=True)
+
+        for buy_price in ordered_buy_prices:
+            if buy_price >= our_sell_price:
+                # We want to sell
+                order = self.sell(state, "PEARLS", buy_price, pearl_limit)
+                orders.append(order)
+        
+        return orders
 
 
     def buy(self, state: TradingState, product: str, acceptable_price: float, limit: int) -> Order:
@@ -171,8 +183,8 @@ class Trader:
         if len(order_depth.buy_orders) != 0:
             best_bid = max(order_depth.buy_orders.keys())
             best_bid_volume = order_depth.buy_orders[best_bid]
+
             if best_bid >= acceptable_price:
-                print('sell volume', best_bid_volume)
                 sell_amount = min(limit + state.position.get(product, 0), best_bid_volume)
                 print("SELL", str(-sell_amount) + "x", best_bid)
                 print(state.position)
@@ -182,3 +194,21 @@ class Trader:
                 return Order(product, best_bid, -sell_amount)
             
         return None
+    
+    def trend(self, ma: np.array, cut_off: int, up_lim=0, down_lim=0) -> int:
+        '''
+        This method is used to calculate the long trend using the last cut off moving average which is based on 50 raw values
+        '''
+        if len(ma) < cut_off:
+            return 0
+        
+        if np.diff(ma[-cut_off:]).sum() > up_lim:
+            return 1
+        
+        elif np.diff(ma[-cut_off:]).sum() < down_lim:
+            return -1
+        
+        else:
+            return 0
+
+
