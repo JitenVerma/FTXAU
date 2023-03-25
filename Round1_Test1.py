@@ -19,6 +19,12 @@ raw_list_pina = deque([], maxlen=50)
 moving_average_pina = deque([], maxlen=100)
 last_buy_pina = 0
 
+dolphin_last = 0
+dolphin_buy = 0
+dolphin_buy_time = 0
+dolphin_sell = 0
+dolphin_sell_time = 0
+
 pl = 2_000_000
 
 class Trader:
@@ -31,6 +37,29 @@ class Trader:
         # Initialize the method output dict as an empty dict
         result = {}
         print(pl, state.position)
+        # print(state.observations)
+
+        if state.observations:
+            global dolphin_last
+            global dolphin_buy
+            global dolphin_buy_time
+            global dolphin_sell
+            global dolphin_sell_time
+
+            dolphin_cur = state.observations['DOLPHIN_SIGHTINGS']
+            if dolphin_last != 0:
+
+                if dolphin_cur - dolphin_last >= 5:
+                    dolphin_buy = 1
+                    dolphin_buy_time = state.timestamp
+
+                elif dolphin_cur - dolphin_last <= -5:
+                    dolphin_sell = 1
+                    dolphin_sell_time = state.timestamp
+
+            dolphin_last = dolphin_cur
+        
+
         # Iterate over all the keys (the available products) contained in the order depths
         for product in state.order_depths.keys():
 
@@ -90,21 +119,75 @@ class Trader:
                 pearl_orders = self.trade_pearls(state)
                 result[product] = pearl_orders
 
-            # NOTE: ROB CODE
-            # if product == "PEARLS":
-            #     pearl_limit = 20
-            #     our_buy_price = 9996
-            #     our_sell_price = 10004
+            if product == "BERRIES":
+                mayberries_orders = self.trade_mayberries(state)
+                result[product] = mayberries_orders
 
-            #     if order := self.sell(state, product, our_sell_price, pearl_limit):
-            #         orders.append(order)
+            if product == "DIVING_GEAR":
+                                        
+                if dolphin_buy:
+                    if state.timestamp < dolphin_buy_time + 10_000:
+                        if order := self.buy(state, product, 1000000000, 50):
+                            orders.append(order)
 
-            #     if order := self.buy(state, product, our_buy_price, pearl_limit):
-            #         orders.append(order)
+                    #elif between 10_000 and 30_000 due to nature of elif
+                    elif state.timestamp < dolphin_buy_time + 30_000:
+                        
+                        cur_pos = state.position.get('DIVING_GEAR', 0)
 
-            #     result[product] = orders
+                        if order := self.sell(state, product, 0, cur_pos):
+                            orders.append(order)
+
+                        if cur_pos == 0:
+                            dolphin_buy = 0
+
+                elif dolphin_sell and state.timestamp < dolphin_sell_time + 10_000:
+                    if order := self.sell(state, product, 0, 50):
+                        orders.append(order)
+
+                    #elif between 10_000 and 30_000 due to nature of elif
+                    elif state.timestamp < dolphin_sell_time + 30_000:
+                        
+                        cur_pos = state.position.get('DIVING_GEAR', 0)
+
+                        if order := self.buy(state, product, 100000000000, cur_pos):
+                            orders.append(order)
+
+                        if cur_pos == 0:
+                            dolphin_sell = 0
+
 
         return result
+    
+    def trade_mayberries(self, state: TradingState) -> Order:
+        product = "BERRIES"
+        our_buy_time = 370_000
+        our_sell_time = 500_000
+        product_limit = 250
+
+        order_depth: OrderDepth = state.order_depths[product]
+
+        # Initialize the list of Orders to be sent as an empty list
+        orders: list[Order] = []
+
+        #### BUYING #####
+        if state.timestamp >= our_buy_time and state.timestamp < our_buy_time + 5000:
+            # Buy at this time regardless of price
+            for ask in order_depth.sell_orders.keys():
+                if order := self.buy(state, product, ask, product_limit):
+                    orders.append(order)
+                # We can buy at the next time interval
+                break
+
+        #### SELLING ##### 
+
+        if state.timestamp >= our_sell_time and state.timestamp < our_sell_time + 5000:
+            for bid in order_depth.buy_orders.keys():
+                if order := self.buy(state, product, ask, product_limit):
+                    orders.append(order)
+                break
+        
+        return orders
     
 
     def trade_pearls(self, state: TradingState) -> Order:
@@ -112,8 +195,8 @@ class Trader:
         This method is used to trade PEARLS
         """
         pearl_limit = 20
-        our_buy_price = 9996
-        our_sell_price = 10004
+        our_buy_price = 9998
+        our_sell_price = 10002
 
         order_depth: OrderDepth = state.order_depths["PEARLS"]
 
@@ -167,7 +250,7 @@ class Trader:
                 buy_amount = min(limit - state.position.get(product, 0), -best_ask_volume)
 
                 
-                print("BUY", str(buy_amount) + "x", best_ask)
+                print("BUY: " + product, str(buy_amount) + "x", best_ask)
                 print(state.position)
 
                 global pl
@@ -186,7 +269,7 @@ class Trader:
 
             if best_bid >= acceptable_price:
                 sell_amount = min(limit + state.position.get(product, 0), best_bid_volume)
-                print("SELL", str(-sell_amount) + "x", best_bid)
+                print("SELL: " + product, str(-sell_amount) + "x", best_bid)
                 print(state.position)
 
                 global pl
