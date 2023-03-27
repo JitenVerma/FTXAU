@@ -45,7 +45,7 @@ class Trader:
             global dolphin_buy_time
             global dolphin_sell
             global dolphin_sell_time
-
+            print(state.timestamp, state.observations)
             dolphin_cur = state.observations['DOLPHIN_SIGHTINGS']
             if dolphin_last != 0:
 
@@ -62,7 +62,7 @@ class Trader:
 
         # Iterate over all the keys (the available products) contained in the order depths
         for product in state.order_depths.keys():
-            orders: list[Order] = []
+            # orders: list[Order] = []
             # Check if the current product is the 'BANANAS' product, only then run the order logic
             # if product == 'BANANAS':
             if False:
@@ -125,8 +125,9 @@ class Trader:
                 result[product] = mayberries_orders
 
             if product == "DIVING_GEAR":
-                                        
+                orders = list()
                 if dolphin_buy:
+                    
                     if state.timestamp < dolphin_buy_time + 10_000:
                         if order := self.buy(state, product, 1000000000, 50):
                             orders.append(order)
@@ -134,29 +135,30 @@ class Trader:
                     #elif between 10_000 and 30_000 due to nature of elif
                     elif state.timestamp < dolphin_buy_time + 30_000:
                         
-                        cur_pos = state.position.get('DIVING_GEAR', 0)
+                        cur_pos = abs(state.position.get('DIVING_GEAR', 0))
 
                         if order := self.sell(state, product, 0, cur_pos):
                             orders.append(order)
 
-                        if cur_pos == 0:
+                        if cur_pos <= 0:
                             dolphin_buy = 0
 
-                elif dolphin_sell and state.timestamp < dolphin_sell_time + 10_000:
-                    if order := self.sell(state, product, 0, 50):
-                        orders.append(order)
+                elif dolphin_sell: 
+                    if state.timestamp < dolphin_sell_time + 10_000:
+                        if order := self.sell(state, product, 0, 50):
+                            orders.append(order)
 
                     #elif between 10_000 and 30_000 due to nature of elif
                     elif state.timestamp < dolphin_sell_time + 30_000:
-                        
-                        cur_pos = state.position.get('DIVING_GEAR', 0)
+                        cur_pos = abs(state.position.get('DIVING_GEAR', 0))
 
                         if order := self.buy(state, product, 100000000000, cur_pos):
                             orders.append(order)
 
-                        if cur_pos == 0:
+                        if cur_pos <= 0:
                             dolphin_sell = 0
 
+                result[product] = orders
 
         return result
     
@@ -184,7 +186,7 @@ class Trader:
 
         if state.timestamp >= our_sell_time and state.timestamp < our_sell_time + 5000:
             for bid in order_depth.buy_orders.keys():
-                if order := self.buy(state, product, ask, product_limit):
+                if order := self.sell(state, product, bid, product_limit):
                     orders.append(order)
                 break
         
