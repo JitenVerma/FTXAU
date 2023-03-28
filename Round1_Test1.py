@@ -65,40 +65,57 @@ class Trader:
             # orders: list[Order] = []
             # Check if the current product is the 'BANANAS' product, only then run the order logic
             # if product == 'BANANAS':
-            if False:
+            if product == 'BANANAS':
+                our_banana_sell_time = 0
+                product_limit = 20
+                window = 5000
 
-                # Retrieve the Order Depth containing all the market BUY and SELL orders for PEARLS
-                order_depth: OrderDepth = state.order_depths[product]
+                banana_order_depth: OrderDepth = state.order_depths[product]
 
                 # Initialize the list of Orders to be sent as an empty list
-                orders: list[Order] = []
+                banana_orders: list[Order] = []
+
+                if state.timestamp >= our_banana_sell_time and state.timestamp < our_banana_sell_time + window:
+                    for bid in banana_order_depth.buy_orders.keys():
+                        if order := self.sell(state, product, bid, product_limit):
+                            banana_orders.append(order)
+                        break
+                
+                # Add all the above orders to the result dict
+                result[product] = banana_orders
+
+                # # Retrieve the Order Depth containing all the market BUY and SELL orders for PEARLS
+                # order_depth: OrderDepth = state.order_depths[product]
+
+                # # Initialize the list of Orders to be sent as an empty list
+                # orders: list[Order] = []
 
                 ##############
-                global raw_list_banana
-                raw_list_banana.append(min(order_depth.sell_orders.keys()))
-                # print('Raw List:', raw_list)
+                # global raw_list_banana
+                # raw_list_banana.append(min(order_depth.sell_orders.keys()))
+                # # print('Raw List:', raw_list)
 
-                global moving_average_banana
-                moving_average_banana.append(np.average(raw_list_banana))
-                # print('Moving Average List: ', moving_average_list)
+                # global moving_average_banana
+                # moving_average_banana.append(np.average(raw_list_banana))
+                # # print('Moving Average List: ', moving_average_list)
 
-                short_trend = self.trend(np.array(moving_average_banana), 15)
-                long_trend = self.trend(np.array(moving_average_banana), 100)
+                # short_trend = self.trend(np.array(moving_average_banana), 15)
+                # long_trend = self.trend(np.array(moving_average_banana), 100)
 
-                # print(f'Long Trend: {long_trend}, Short Trend: {short_trend}')
+                # # print(f'Long Trend: {long_trend}, Short Trend: {short_trend}')
 
-                if long_trend == -1 and short_trend == 1:
-                    acceptable_price = moving_average_banana[-1] + 3
+                # if long_trend == -1 and short_trend == 1:
+                #     acceptable_price = moving_average_banana[-1] + 3
 
-                    # TODO BANANA LIMIT IS HARD CODED
-                    if order := self.buy(state, product, acceptable_price, 20):
-                        orders.append(order)
+                #     # TODO BANANA LIMIT IS HARD CODED
+                #     if order := self.buy(state, product, acceptable_price, 20):
+                #         orders.append(order)
 
-                elif long_trend == 1 and short_trend == -1:
+                # elif long_trend == 1 and short_trend == -1:
 
-                    acceptable_price = moving_average_banana[-1] - 3
-                    if order := self.sell(state, product, acceptable_price, 20):
-                        orders.append(order)
+                #     acceptable_price = moving_average_banana[-1] - 3
+                #     if order := self.sell(state, product, acceptable_price, 20):
+                #         orders.append(order)
 
                 # if state.position.get('BANANAS', 0) :
                 #     acceptable_price = last_buy
@@ -112,7 +129,7 @@ class Trader:
                 #             orders.append(Order(product, best_bid, -best_bid_volume))
 
                 # Add all the above orders to the result dict
-                result[product] = orders
+                # result[product] = orders
 
 
             # NOTE: KUNJ CODE
@@ -133,11 +150,11 @@ class Trader:
                             orders.append(order)
 
                     #elif between 10_000 and 30_000 due to nature of elif
-                    elif state.timestamp < dolphin_buy_time + 30_000:
+                    elif state.timestamp > dolphin_buy_time + 30_000:
                         
-                        cur_pos = abs(state.position.get('DIVING_GEAR', 0))
+                        cur_pos = state.position.get('DIVING_GEAR', 0)
 
-                        if order := self.sell(state, product, 0, cur_pos):
+                        if order := self.sell(state, product, 0, 50):
                             orders.append(order)
 
                         if cur_pos <= 0:
@@ -149,13 +166,13 @@ class Trader:
                             orders.append(order)
 
                     #elif between 10_000 and 30_000 due to nature of elif
-                    elif state.timestamp < dolphin_sell_time + 30_000:
-                        cur_pos = abs(state.position.get('DIVING_GEAR', 0))
+                    elif state.timestamp > dolphin_sell_time + 30_000:
+                        cur_pos = state.position.get('DIVING_GEAR', 0)
 
-                        if order := self.buy(state, product, 100000000000, cur_pos):
+                        if order := self.buy(state, product, 100000000000, 50):
                             orders.append(order)
 
-                        if cur_pos <= 0:
+                        if cur_pos >= 0:
                             dolphin_sell = 0
 
                 result[product] = orders
